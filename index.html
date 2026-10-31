@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilhas de Florianópolis</title>
+  <meta name="description" content="Mapa colaborativo e aberto das trilhas de Florianópolis e região, alimentado por OpenStreetMap." />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Trilhas de Florianópolis</h1>
+      <p class="tagline">Mapa aberto e colaborativo · dados do OpenStreetMap</p>
+    </div>
+    <div class="actions">
+      <span id="trail-count" class="count">…</span>
+      <a class="btn" href="https://www.openstreetmap.org/edit" target="_blank" rel="noopener">+ Adicionar trilha no OSM</a>
+      <a class="btn btn-ghost" href="https://github.com/ribeirojose/trilhas-floripa" target="_blank" rel="noopener">Repo</a>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="search">
+        <input id="search" type="search" placeholder="Buscar trilha (ex: Lagoinha, Farol, Naufragados)" autocomplete="off" />
+      </div>
+      <div class="filters">
+        <select id="difficulty-filter">
+          <option value="">Toda dificuldade</option>
+          <option value="easy">Fácil</option>
+          <option value="medium">Moderada</option>
+          <option value="difficult">Difícil</option>
+        </select>
+        <select id="kind-filter">
+          <option value="">Todo tipo</option>
+          <option value="trilha">Trilha</option>
+          <option value="caminho">Caminho</option>
+        </select>
+      </div>
+      <ul id="trail-list" class="trail-list"></ul>
+      <p id="list-empty" class="empty" hidden>Nenhuma trilha encontrada.</p>
+    </aside>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div class="legend">
+        <span><i style="background:#16a34a"></i>Fácil</span>
+        <span><i style="background:#ea580c"></i>Moderada</span>
+        <span><i style="background:#dc2626"></i>Difícil</span>
+        <span><i style="background:#2563eb"></i>Sem classificação</span>
+      </div>
+      <div id="loading" class="loading">Carregando trilhas…</div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
