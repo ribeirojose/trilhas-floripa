@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trilhas de Florianópolis</title>
-  <meta name="description" content="Mapa colaborativo e aberto das trilhas de Florianópolis e região, alimentado por OpenStreetMap." />
+  <title>Trilhas de Santa Catarina</title>
+  <meta name="description" content="Mapa colaborativo e aberto das trilhas de Santa Catarina, alimentado por OpenStreetMap." />
   <meta name="theme-color" content="#ffffff" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
   <header class="topbar">
@@ -20,8 +20,8 @@
         <circle cx="18" cy="6" r="2" fill="currentColor"/>
       </svg>
       <div>
-        <h1>Trilhas de Florianópolis</h1>
-        <p class="tagline">Mapa aberto e colaborativo · dados do OpenStreetMap</p>
+        <h1>Trilhas de Santa Catarina</h1>
+        <p class="tagline" id="scope">Mapa aberto e colaborativo · dados do OpenStreetMap</p>
       </div>
     </div>
     <div class="actions">
@@ -42,22 +42,24 @@
           <input id="search" type="search" placeholder="Buscar trilha…" autocomplete="off" aria-label="Buscar trilha" />
         </div>
         <div class="regions" role="tablist" aria-label="Regiões">
-          <button class="region-btn active" data-region="" role="tab" aria-selected="true">Todas</button>
-          <button class="region-btn" data-region="norte" role="tab" aria-selected="false">Norte</button>
-          <button class="region-btn" data-region="leste" role="tab" aria-selected="false">Leste</button>
-          <button class="region-btn" data-region="centro-oeste" role="tab" aria-selected="false">Centro-Oeste</button>
-          <button class="region-btn" data-region="sul" role="tab" aria-selected="false">Sul</button>
-          <button class="region-btn" data-region="continente" role="tab" aria-selected="false">Continente</button>
+          <button class="region-btn active" data-group="" role="tab" aria-selected="true">Todas</button>
+          <button class="region-btn" data-group="ilha" role="tab" aria-selected="false">Ilha</button>
+          <button class="region-btn" data-group="litoral" role="tab" aria-selected="false">Litoral</button>
+          <button class="region-btn" data-group="serra" role="tab" aria-selected="false">Serra e Vale</button>
+          <button class="region-btn" data-group="interior" role="tab" aria-selected="false">Interior</button>
         </div>
-        <div class="filters">
+        <div class="filters filters-3">
+          <select id="municipio-filter" aria-label="Filtrar por município">
+            <option value="">Todo município</option>
+          </select>
           <select id="difficulty-filter" aria-label="Filtrar por dificuldade">
-            <option value="">Toda dificuldade</option>
+            <option value="">Dificuldade</option>
             <option value="easy">Fácil</option>
             <option value="medium">Moderada</option>
             <option value="difficult">Difícil</option>
           </select>
           <select id="kind-filter" aria-label="Filtrar por tipo">
-            <option value="">Todo tipo</option>
+            <option value="">Tipo</option>
             <option value="trilha">Trilha</option>
             <option value="caminho">Caminho</option>
           </select>
@@ -81,6 +83,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

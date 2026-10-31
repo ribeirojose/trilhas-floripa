@@ -6,38 +6,58 @@ const DATA_URL = "trails.geojson";
 
 const DIFFICULTY_LABEL = { easy: "Fácil", medium: "Moderada", difficult: "Difícil" };
 const KIND_LABEL = { trilha: "Trilha", caminho: "Caminho" };
+const COLOR_UNKNOWN = "#7c3aed";
 const COLORS = {
   easy: "#16a34a",
   medium: "#ea580c",
   difficult: "#dc2626",
-  unknown: "#7c3aed",
 };
 
-const REGION_ORDER = ["norte", "leste", "centro-oeste", "sul", "continente"];
+// Sidebar grouping. "Ilha" first because the project started there, then the
+// mainland coast and the serra.
+const GROUPS = [
+  { key: "ilha", label: "Ilha de Santa Catarina" },
+  { key: "litoral", label: "Litoral" },
+  { key: "serra", label: "Serra e Vale" },
+  { key: "interior", label: "Interior" },
+];
 
-const state = { trails: [], active: null, map: null, layers: new Map(), region: "" };
+const state = {
+  trails: [],
+  active: null,
+  map: null,
+  layers: new Map(),
+  group: "",
+  municipio: "",
+};
 
 // --- Load -------------------------------------------------------------------
 async function loadTrails() {
   const res = await fetch(DATA_URL, { cache: "no-cache" });
   if (!res.ok) throw new Error(`trails.geojson ${res.status}`);
   const json = await res.json();
-  return (json.features || []).map((f) => ({
-    ...f.properties,
-    line: f.geometry.coordinates.map((seg) => seg.map(([lon, lat]) => [lat, lon])),
-  }));
+  return {
+    meta: json.metadata || {},
+    trails: (json.features || []).map((f) => ({
+      ...f.properties,
+      // Which sidebar group this trail belongs to.
+      group: f.properties.municipio === "Florianópolis" ? "ilha" : f.properties.landscape,
+      line: f.geometry.coordinates.map((seg) => seg.map(([lon, lat]) => [lat, lon])),
+    })),
+  };
 }
 
-const colorOf = (t) => COLORS[t.difficulty] || COLORS.unknown;
+const colorOf = (t) => COLORS[t.difficulty] || COLOR_UNKNOWN;
 
 // --- Filtering --------------------------------------------------------------
-function filterTrails(trails, search, difficulty, kind, region) {
+function filterTrails(trails, search, difficulty, kind, group, municipio) {
   const q = search.trim().toLowerCase();
   return trails.filter((t) => {
     if (q && !t.name.toLowerCase().includes(q)) return false;
     if (difficulty && t.difficulty !== difficulty) return false;
     if (kind && t.kind !== kind) return false;
-    if (region && t.region !== region) return false;
+    if (group && t.group !== group) return false;
+    if (municipio && t.municipio !== municipio) return false;
     return true;
   });
 }
@@ -62,7 +82,11 @@ function trailItem(t) {
 
   const meta = document.createElement("div");
   meta.className = "trail-meta";
-  meta.appendChild(chip(KIND_LABEL[t.kind] || t.kind, "kind"));
+  if (t.municipio && t.group !== "ilha") {
+    meta.appendChild(chip(t.municipio, "kind"));
+  } else {
+    meta.appendChild(chip(KIND_LABEL[t.kind] || t.kind, "kind"));
+  }
   if (t.difficulty) meta.appendChild(chip(DIFFICULTY_LABEL[t.difficulty], t.difficulty));
   if (t.distanceKm) meta.appendChild(chip(t.distanceKm.toFixed(1) + " km"));
   li.appendChild(meta);
@@ -75,24 +99,16 @@ function renderList(list) {
   const ul = document.getElementById("trail-list");
   ul.innerHTML = "";
 
-  // Group by region so the sidebar reads as a guidebook, not a flat dump.
-  const groups = new Map();
-  for (const t of list) {
-    const key = t.region || "outros";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(t);
-  }
-
-  for (const region of REGION_ORDER) {
-    const trails = groups.get(region);
-    if (!trails || !trails.length) continue;
+  for (const group of GROUPS) {
+    const trails = list.filter((t) => t.group === group.key);
+    if (!trails.length) continue;
 
     const header = document.createElement("li");
     header.className = "region-header";
 
     const label = document.createElement("span");
     label.className = "region-name";
-    label.textContent = trails[0].regionLabel || region;
+    label.textContent = group.label;
     header.appendChild(label);
 
     const count = document.createElement("span");
@@ -117,7 +133,8 @@ function selectTrail(t) {
 
 function popupHtml(t) {
   const rows = [];
-  if (t.regionLabel) rows.push(`<strong>Região:</strong> ${t.regionLabel}`);
+  if (t.municipio) rows.push(`<strong>Município:</strong> ${t.municipio}`);
+  if (t.zoneLabel && t.group === "ilha") rows.push(`<strong>Região:</strong> ${t.zoneLabel}`);
   if (t.difficulty) rows.push(`<strong>Dificuldade:</strong> ${DIFFICULTY_LABEL[t.difficulty]}`);
   if (t.distanceKm) rows.push(`<strong>Distância:</strong> ${t.distanceKm.toFixed(2)} km`);
   if (t.surface) rows.push(`<strong>Piso:</strong> ${t.surface}`);
@@ -130,19 +147,30 @@ function popupHtml(t) {
 
 const val = (id) => document.getElementById(id).value;
 
-// --- Region tabs -------------------------------------------------------------
-function selectRegion(region) {
-  state.region = region;
+// --- Group tabs --------------------------------------------------------------
+function selectGroup(group) {
+  state.group = group;
+  state.municipio = ""; // a município from another group no longer applies
+  syncMunicipioOptions();
   for (const btn of document.querySelectorAll(".region-btn")) {
-    const on = btn.dataset.region === region;
+    const on = btn.dataset.group === group;
     btn.classList.toggle("active", on);
     btn.setAttribute("aria-selected", String(on));
   }
   state.active = null;
   renderAll();
+  flyToVisible();
+}
 
-  // Frame the selected region on the map.
-  const trails = filterTrails(state.trails, "", "", "", region);
+function flyToVisible() {
+  const trails = filterTrails(
+    state.trails,
+    val("search"),
+    val("difficulty-filter"),
+    val("kind-filter"),
+    state.group,
+    state.municipio
+  );
   if (!trails.length) return;
   const bounds = L.latLngBounds([]);
   for (const t of trails) {
@@ -150,8 +178,31 @@ function selectRegion(region) {
     if (entry) bounds.extend(entry.line.getBounds());
   }
   if (bounds.isValid()) {
-    state.map.flyToBounds(bounds, { padding: [50, 50], duration: 0.7, maxZoom: 14 });
+    state.map.flyToBounds(bounds, { padding: [50, 50], duration: 0.7, maxZoom: 13 });
   }
+}
+
+function syncMunicipioOptions() {
+  const select = document.getElementById("municipio-filter");
+  const visible = state.trails.filter((t) => !state.group || t.group === state.group);
+  const names = [...new Set(visible.map((t) => t.municipio).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "pt-BR")
+  );
+
+  const current = state.municipio;
+  select.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "Todo município";
+  select.appendChild(all);
+  for (const name of names) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.value = names.includes(current) ? current : "";
+  state.municipio = select.value;
 }
 
 function renderAll() {
@@ -160,7 +211,8 @@ function renderAll() {
     val("search"),
     val("difficulty-filter"),
     val("kind-filter"),
-    state.region
+    state.group,
+    state.municipio
   );
   renderList(list);
 
@@ -180,8 +232,6 @@ function renderAll() {
       if (!state.map.hasLayer(layer)) layer.addTo(state.map);
     }
 
-    // Style only the coloured line layer; the casing keeps its own colour.
-    // With a selection active, other trails step back.
     const dimmed = state.active && !isActive;
     entry.line.setStyle({
       weight: isActive ? 6 : zoom >= 14 ? 4 : zoom >= 12 ? 3.5 : 2.5,
@@ -197,17 +247,15 @@ function renderAll() {
       entry.line.bringToFront();
     }
   }
+
   document.getElementById("trail-count").textContent =
     `${list.length} de ${state.trails.length} trilhas`;
 }
 
 // --- Map --------------------------------------------------------------------
 function initMap() {
-  // Centre on the island itself. Falling back to fitBounds on every trail
-  // zooms out to ~50 km, where 1 km trails are sub-pixel.
-  const map = L.map("map", { zoomControl: true }).setView([-27.64, -48.47], 12);
+  const map = L.map("map", { zoomControl: true }).setView([-27.64, -48.47], 11);
   // Terrain basemap: hills and water give trails context and contrast.
-  // Esri World Topo serves without an API key.
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
     {
@@ -249,7 +297,6 @@ function initMap() {
     lines.on("click", () => selectTrail(t));
     lines.addTo(map);
 
-    // Casing and line stay separate so filtering can restyle only the line.
     state.layers.set(t.name, { casing, line: lines, all: [casing, lines] });
   }
 
@@ -257,20 +304,28 @@ function initMap() {
 }
 
 // --- Bootstrap --------------------------------------------------------------
-["search", "difficulty-filter", "kind-filter"].forEach((id) => {
+["search", "difficulty-filter", "kind-filter", "municipio-filter"].forEach((id) => {
   document.getElementById(id).addEventListener("input", renderAll);
   document.getElementById(id).addEventListener("change", renderAll);
 });
 
 for (const btn of document.querySelectorAll(".region-btn")) {
-  btn.addEventListener("click", () => selectRegion(btn.dataset.region));
+  btn.addEventListener("click", () => selectGroup(btn.dataset.group));
 }
 
 (async function main() {
   const loading = document.getElementById("loading");
   try {
-    state.trails = await loadTrails();
+    const { meta, trails } = await loadTrails();
+    state.trails = trails;
+
+    const count = document.getElementById("trail-count");
+    count.textContent = `${trails.length} trilhas`;
+    document.getElementById("scope").textContent =
+      `${meta.municipios?.length || 0} municípios · ${meta.count || trails.length} trilhas`;
+
     initMap();
+    syncMunicipioOptions();
     renderAll();
     loading.hidden = true;
   } catch (err) {

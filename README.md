@@ -1,6 +1,6 @@
-# Trilhas de Florianópolis
+# Trilhas de Santa Catarina
 
-Mapa aberto e colaborativo das trilhas de Florianópolis e região, alimentado por dados do [OpenStreetMap](https://www.openstreetmap.org).
+Mapa aberto e colaborativo das trilhas de Santa Catarina, alimentado por dados do [OpenStreetMap](https://www.openstreetmap.org).
 
 ## Por que OpenStreetMap?
 
@@ -8,9 +8,12 @@ Não duplicamos dados. As trilhas vivem no OSM, onde qualquer pessoa pode adicio
 
 ## Como funciona
 
-O site é 100% estático e lê `trails.geojson`, um arquivo versionado neste repo.
-Nada é consultado em tempo de carregamento — a página abre instantânea e não
-depende da Overpass API estar no ar.
+Cobertura: **todo o estado de Santa Catarina** (~280 trilhas em ~63 municípios),
+com foco na Ilha de Santa Catarina, litoral e Serra do Tabuleiro / Vale do Itajaí.
+
+O site é 100% estático e lê `trails.geojson` (197 KB), um arquivo versionado
+neste repo. Nada é consultado em tempo de carregamento — a página abre
+instantânea e não depende da Overpass API estar no ar.
 
 `trails.geojson` é gerado por `scripts/refresh.py`, que:
 
@@ -23,22 +26,30 @@ depende da Overpass API estar no ar.
 - Guarda a geometria real (MultiLineString), então o mapa desenha o traçado da
   trilha, não um pino.
 - Calcula a distância somando os segmentos, quando o OSM não informa `distance`.
-- Classifica cada trilha em uma região: Norte, Leste, Centro-Oeste, Sul da Ilha
-  ou Continente.
+- Descobre o município de cada trilha com point-in-polygon contra as 295 malhas
+  municipais do IBGE (`data/municipios.geojson`), com fallback para o município
+  mais próximo (as malhas de resolução intermediária erram a costa por algumas
+  centenas de metros).
+- Agrupa em Ilha / Litoral / Serra e Vale / Interior, e dentro da ilha em Norte,
+  Leste, Centro-Oeste e Sul.
+- Simplifica a geometria (Douglas-Peucker, ~33 m) para o arquivo caber em 197 KB
+  em vez de 785 KB, sem perda visível.
 
-### Regiões
+### Agrupamento
 
-| Região | Critério |
+| Grupo | Critério |
 | --- | --- |
-| Continente | oeste do estreito (lon < -48.56) ou norte da baía |
-| Norte da Ilha | lat > -27.50 |
-| Leste da Ilha | lon > -48.465 |
-| Centro-Oeste da Ilha | entre o Norte e o Sul, a oeste do Leste |
-| Sul da Ilha | lat < -27.66 |
+| Ilha | município de Florianópolis |
+| Litoral | municípios costeiros (Bombinhas, Itapema, Palhoça, Garopaba...) |
+| Serra e Vale | Serra do Tabuleiro e Vale do Itajaí (Blumenau, Urubici...) |
+| Interior | o resto do estado |
 
-Os limites ficam em `region_of()` no `scripts/refresh.py`. Mudou a divisão?
-Edite lá e rode `python3 scripts/refresh.py --from-cache` para reclassificar
-sem baixar nada do OSM.
+Dentro da Ilha: Norte (lat > -27.50), Sul (lat < -27.66), Leste (lon > -48.465)
+e Centro-Oeste.
+
+As listas `COASTAL` e `SERRANO` e a função `zone_of()` ficam em
+`scripts/refresh.py`. Mudou a divisão? Edite lá e rode
+`python3 scripts/refresh.py --from-cache` para reclassificar sem baixar nada.
 
 ## Como contribuir
 
@@ -58,6 +69,7 @@ Os dados ficam no OpenStreetMap, não aqui:
 | `distance` | distância em km | `3.8` |
 | `surface` | tipo de piso | `dirt`, `rock`, `sand` |
 | `operator` | gestor da trilha | `Parque Estadual do Rio Vermelho` |
+| `route` | para rotas com vários trechos | `hiking` |
 
 4. Salve com uma descrição clara.
 
