@@ -23,6 +23,22 @@ depende da Overpass API estar no ar.
 - Guarda a geometria real (MultiLineString), então o mapa desenha o traçado da
   trilha, não um pino.
 - Calcula a distância somando os segmentos, quando o OSM não informa `distance`.
+- Classifica cada trilha em uma região: Norte, Leste, Centro-Oeste, Sul da Ilha
+  ou Continente.
+
+### Regiões
+
+| Região | Critério |
+| --- | --- |
+| Continente | oeste do estreito (lon < -48.56) ou norte da baía |
+| Norte da Ilha | lat > -27.50 |
+| Leste da Ilha | lon > -48.465 |
+| Centro-Oeste da Ilha | entre o Norte e o Sul, a oeste do Leste |
+| Sul da Ilha | lat < -27.66 |
+
+Os limites ficam em `region_of()` no `scripts/refresh.py`. Mudou a divisão?
+Edite lá e rode `python3 scripts/refresh.py --from-cache` para reclassificar
+sem baixar nada do OSM.
 
 ## Como contribuir
 
@@ -58,7 +74,8 @@ Abra <http://localhost:8000>. O site é estático: `index.html`, `app.js` e `sty
 Para atualizar os dados depois de editar trilhas no OSM:
 
 ```bash
-python3 scripts/refresh.py    # reescreve trails.geojson
+python3 scripts/refresh.py               # baixa do OSM e reescreve trails.geojson
+python3 scripts/refresh.py --from-cache  # só reclassifica o arquivo atual
 ```
 
 A Overpass API às vezes devolve `429`/`502` sob carga — o script sai com erro e
@@ -72,6 +89,7 @@ GitHub Pages (branch `main`, pasta raiz) — sem backend, sem custo.
 
 - [x] Filtrar ruas/servidões urbanas (não-trilhas) automaticamente
 - [x] Desenhar o traçado real da trilha (não só um pino)
+- [x] Agrupar trilhas por região da Grande Florianópolis
 - [ ] Classificação manual das trilhas oficiais (dificuldade, distância, gestor)
 - [ ] Adicionar as trilhas que ainda não existem no OSM
 - [ ] Fotos e relatos por trilha (via links para o OSM/Wikimedia)

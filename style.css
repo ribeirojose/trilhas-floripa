@@ -183,6 +183,66 @@ html, body {
   gap: 0.5rem;
 }
 
+.regions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.region-btn {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 500;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.region-btn:hover { background: var(--surface-2); color: var(--text); }
+
+.region-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.region-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0.4rem 0.35rem;
+  position: sticky;
+  top: 0;
+  background: linear-gradient(var(--surface) 78%, transparent);
+  z-index: 1;
+}
+
+.region-header:first-child { padding-top: 0.3rem; }
+
+.region-name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.region-count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: var(--surface-3);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .filters select {
   width: 100%;
   padding: 0.45rem 1.6rem 0.45rem 0.6rem;

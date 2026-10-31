@@ -3,11 +3,13 @@
 
 Run occasionally (not at page load) to refresh the committed trail geometry:
 
-    python3 scripts/refresh.py
+    python3 scripts/refresh.py              # fetch from Overpass, then rebuild
+    python3 scripts/refresh.py --from-cache # re-annotate the existing file
 
 Emits real line geometry so the map draws trails as routes, not pins.
 Filters out urban features (ruas, servidões, travessas, escadarias) that OSM
 also tags as footways, keeping only named paths that look like real trails.
+Adds a `region` so the site can group trails by part of the island.
 """
 
 import json
@@ -23,10 +25,11 @@ OVERPASS = "https://overpass-api.de/api/interpreter"
 OUT = Path(__file__).resolve().parent.parent / "trails.geojson"
 
 # Urban street furniture that OSM tags as footway but is not a trail.
+# Prefix matching on purpose: "Servidão" must match "servid".
 DENY = re.compile(
     r"^(rua|avenida|alameda|travessa|travess|servid|beco|vila|ponte|trapiche"
     r"|galeria|estrada|ciclovia|passeio|passagem|via de|viela|escadaria"
-    r"|escadinha|praça|salão|acesso|boulevard|calçadão|primeira)\b",
+    r"|escadinha|praça|salão|acesso|boulevard|calçadão|primeira)",
     re.I,
 )
 
@@ -42,6 +45,39 @@ SAC_SCALE = {
     "demanding_mountain_hiking": "difficult",
     "alpine_hiking": "difficult",
 }
+
+# --- Regions -----------------------------------------------------------------
+# Hand-tuned split of Grande Florianópolis. Thresholds follow the geography:
+# the strait sits near lon -48.56, the island runs from lat -27.37 to -27.89.
+REGION_ORDER = ["norte", "leste", "centro-oeste", "sul", "continente"]
+
+REGION_LABELS = {
+    "norte": "Norte da Ilha",
+    "leste": "Leste da Ilha",
+    "centro-oeste": "Centro-Oeste da Ilha",
+    "sul": "Sul da Ilha",
+    "continente": "Continente",
+}
+
+
+def region_of(lat: float, lon: float) -> str:
+    """Classify a trail centroid into a region of Grande Florianópolis."""
+    # West of the strait: São José, Palhoça (Pedra Branca, Cambirela).
+    if lon < -48.56:
+        return "continente"
+    # Across the bay to the north: Biguaçu, Governador Celso Ramos.
+    if lat > -27.37 and lon > -48.50:
+        return "continente"
+    if lat > -27.50:
+        return "norte"
+    if lat < -27.66:
+        return "sul"
+    if lon > -48.465:
+        return "leste"
+    return "centro-oeste"
+
+
+# --- Fetch -------------------------------------------------------------------
 
 
 def fetch() -> dict:
@@ -63,9 +99,17 @@ def fetch() -> dict:
         return json.load(resp)
 
 
+# --- Build -------------------------------------------------------------------
+
+
+def name_allowed(name: str) -> bool:
+    """False for urban street furniture that OSM tags as a footway."""
+    return bool(name) and not DENY.match(name.strip())
+
+
 def is_trail(tags: dict) -> bool:
-    name = (tags.get("name") or "").strip()
-    if not name or DENY.match(name):
+    name = tags.get("name") or ""
+    if not name_allowed(name):
         return False
     return bool(
         KEEP.search(name) or tags.get("route") == "hiking" or tags.get("sac_scale")
@@ -186,6 +230,7 @@ def build(elements: list) -> list:
                     for i in range(len(line) - 1)
                 )
 
+            region = region_of(lat, lon)
             features.append(
                 {
                     "type": "Feature",
@@ -195,6 +240,8 @@ def build(elements: list) -> list:
                         "kind": "trilha"
                         if hiking or TRAIL_NAME.search(name)
                         else "caminho",
+                        "region": region,
+                        "regionLabel": REGION_LABELS[region],
                         "difficulty": SAC_SCALE.get(merged_tags.get("sac_scale")),
                         "distanceKm": round(dist, 2),
                         "surface": merged_tags.get("surface"),
@@ -207,15 +254,64 @@ def build(elements: list) -> list:
                 }
             )
 
-    features.sort(key=lambda f: f["properties"]["name"])
+    return sort_features(features)
+
+
+def sort_features(features: list) -> list:
+    """Region order first, then name, so the sidebar reads top to bottom."""
+    order = {key: i for i, key in enumerate(REGION_ORDER)}
+    features.sort(
+        key=lambda f: (
+            order.get(f["properties"].get("region"), 99),
+            f["properties"]["name"],
+        )
+    )
     return features
 
 
-def main() -> int:
+def annotate_cached(features: list) -> list:
+    """Re-apply name filtering and regions to an existing file, no network."""
+    kept = []
+    for f in features:
+        props = f["properties"]
+        if not name_allowed(props.get("name", "")):
+            continue
+        region = region_of(props["lat"], props["lon"])
+        props["region"] = region
+        props["regionLabel"] = REGION_LABELS[region]
+        kept.append(f)
+    return sort_features(kept)
+
+
+# --- CLI ---------------------------------------------------------------------
+
+
+def load_cached() -> dict:
+    return json.loads(OUT.read_text())
+
+
+def main(argv: list[str]) -> int:
+    from_cache = "--from-cache" in argv
+
+    if from_cache:
+        payload = load_cached()
+        features = annotate_cached(payload.get("features", []))
+        payload["features"] = features
+        payload.setdefault("metadata", {})["count"] = len(features)
+        payload["metadata"]["regions"] = [
+            REGION_LABELS[key] for key in REGION_ORDER
+        ]
+        OUT.write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        )
+        print(f"{len(features)} trilhas (cache) -> {OUT}")
+        return 0
+
     try:
         data = fetch()
     except Exception as exc:  # network/Overpass failure
         print(f"Overpass fetch failed: {exc}", file=sys.stderr)
+        print("Existing trails.geojson left untouched.", file=sys.stderr)
         return 1
 
     features = build(data.get("elements", []))
@@ -226,6 +322,7 @@ def main() -> int:
             "source": "OpenStreetMap ODbL",
             "bbox": list(BBOX),
             "count": len(features),
+            "regions": [REGION_LABELS[key] for key in REGION_ORDER],
         },
         "features": features,
     }
@@ -235,4 +332,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
