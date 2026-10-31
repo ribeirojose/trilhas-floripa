@@ -10,7 +10,7 @@ const COLORS = {
   easy: "#16a34a",
   medium: "#ea580c",
   difficult: "#dc2626",
-  unknown: "#2563eb",
+  unknown: "#7c3aed",
 };
 
 const state = { trails: [], active: null, map: null, layers: new Map() };
@@ -62,7 +62,7 @@ function renderList(list) {
 
     const meta = document.createElement("div");
     meta.className = "trail-meta";
-    meta.appendChild(chip(KIND_LABEL[t.kind] || t.kind));
+    meta.appendChild(chip(KIND_LABEL[t.kind] || t.kind, "kind"));
     if (t.difficulty) meta.appendChild(chip(DIFFICULTY_LABEL[t.difficulty], t.difficulty));
     if (t.distanceKm) meta.appendChild(chip(t.distanceKm.toFixed(1) + " km"));
     li.appendChild(meta);
@@ -88,7 +88,7 @@ function popupHtml(t) {
   if (t.surface) rows.push(`<strong>Piso:</strong> ${t.surface}`);
   if (t.operator) rows.push(`<strong>Gestor:</strong> ${t.operator}`);
   rows.push(
-    `<a href="https://www.openstreetmap.org/${t.osm}" target="_blank" rel="noopener">Ver / editar no OpenStreetMap</a>`
+    `<a href="https://www.openstreetmap.org/${t.osm}" target="_blank" rel="noopener">Ver / editar no OpenStreetMap ↗</a>`
   );
   return `<strong>${t.name}</strong><br>` + rows.join("<br>");
 }
@@ -116,14 +116,16 @@ function renderAll() {
     }
 
     // Style only the coloured line layer; the casing keeps its own colour.
+    // With a selection active, other trails step back.
+    const dimmed = state.active && !isActive;
     entry.line.setStyle({
-      weight: isActive ? 7 : zoom >= 14 ? 5 : zoom >= 12 ? 4 : 3,
-      opacity: 1,
-      color: isActive ? "#facc15" : colorOf(trail),
+      weight: isActive ? 6 : zoom >= 14 ? 4 : zoom >= 12 ? 3.5 : 2.5,
+      opacity: isActive ? 1 : dimmed ? 0.25 : 1,
+      color: colorOf(trail),
     });
     entry.casing.setStyle({
-      weight: isActive ? 12 : zoom >= 14 ? 10 : zoom >= 12 ? 9 : 8,
-      opacity: 0.5,
+      weight: isActive ? 11 : zoom >= 14 ? 9 : zoom >= 12 ? 8 : 7,
+      opacity: isActive ? 1 : dimmed ? 0.15 : 0.85,
     });
     if (isActive) {
       entry.casing.bringToFront();
@@ -139,20 +141,29 @@ function initMap() {
   // Centre on the island itself. Falling back to fitBounds on every trail
   // zooms out to ~50 km, where 1 km trails are sub-pixel.
   const map = L.map("map", { zoomControl: true }).setView([-27.64, -48.47], 12);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  // Terrain basemap: hills and water give trails context and contrast.
+  // Esri World Topo serves without an API key.
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 17,
+      maxNativeZoom: 17,
+      attribution:
+        'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ &middot; Dados &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }
+  ).addTo(map);
   state.map = map;
 
   for (const t of state.trails) {
-    // Dark casing underneath: trails stay readable over busy OSM tiles.
+    // White casing keeps each trail legible over pale basemap detail.
     const casing = L.featureGroup(
       t.line.map((seg) =>
         L.polyline(seg, {
-          color: "#000000",
-          weight: 9,
-          opacity: 0.35,
+          color: "#ffffff",
+          weight: 8,
+          opacity: 0.9,
+          lineCap: "round",
+          lineJoin: "round",
           interactive: false,
         })
       )
@@ -163,6 +174,8 @@ function initMap() {
           color: colorOf(t),
           weight: 4,
           opacity: 1,
+          lineCap: "round",
+          lineJoin: "round",
           bubblingMouseEvents: false,
         })
       )
